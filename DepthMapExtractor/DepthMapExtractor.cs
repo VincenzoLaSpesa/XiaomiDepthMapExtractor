@@ -168,8 +168,8 @@ namespace DepthMapExtractor
 
         public void Process()
         {
-            var chunks = SeparateToFiles(options.InputFile);
-            imageMetadata = ExtractJpegMetadata(chunks[0]);
+            SeparateToFiles(options.InputFile);
+            imageMetadata = ExtractJpegMetadata(options.InputFile);
             logger.Log("The main image has this shape: " + JsonSerializer.Serialize(imageMetadata));
             ExtractDepthMap();
         }
@@ -214,7 +214,7 @@ namespace DepthMapExtractor
             logger.Log("Extracting xml from " + filename);
             const string token = "MiCamera:XMPMeta=";
             binaryReader.BaseStream.Seek(0x3A7, SeekOrigin.Begin);
-            string blob = Encoding.UTF8.GetString(binaryReader.ReadBytes(1024));
+            string blob = Encoding.UTF8.GetString(binaryReader.ReadBytes(4096));
             var blobs = blob.Split(token);
             if (blobs.Length < 2)
                 return default;
