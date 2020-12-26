@@ -22,6 +22,13 @@ A typical call is:
 -  `.\DepthMapExtractor Image.jpg` 
 -  `.\DepthMapExtractor -i Image.jpg -o Image` 
 
+## Currently tested with
+
+It works with: 
+
+- Xiaomi POCO F1
+- Redmi Note 9 Pro
+
 ## About Kaitai
 
 This software uses Kaitai for parsing the binary structure of the file.
