@@ -25,12 +25,10 @@ namespace DepthMapExtractor
                 Parser.Default.ParseArguments<Options>(args)
                    .WithParsed<Options>(o =>
                    {
-                       var result = Parser.Default.ParseArguments<Options>(args);
                        using DepthMapExtractor depthMapExtractor = new DepthMapExtractor(o);
                        depthMapExtractor.Process();
                    });
             }
-            Console.WriteLine("Done.");
         }
     }
 }

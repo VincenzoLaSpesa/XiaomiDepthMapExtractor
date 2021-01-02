@@ -14,8 +14,11 @@ namespace DepthMapExtractor
 {
     public class Options
     {
-        [Option('v', "verbose", Required = false, HelpText = "Set output to verbose messages.")]
-        public bool Verbose { get; set; }
+        [Option('v', "verbose", Required = false, HelpText = "Write output to stdout.", Default =true)]
+        public bool Verbose { get; set; } = true;
+
+        [Option('l', "log", Required = false, HelpText = "Write to a logfile too.")]
+        public bool Log { get; set; }
 
         [Option('c', "confidence_map", Required = false, HelpText = "Extract the confidence map")]
         public bool ConfidenceMap { get; set; }
@@ -163,7 +166,10 @@ namespace DepthMapExtractor
         {
             options = setup;
             streams = new Streams(setup);
-            logger = new Logger(setup.OutputFile + ".log");
+            if(options.Log)
+                logger = new Logger(setup.OutputFile + ".log");
+            else
+                logger = new Logger();
         }
 
         public void Process()
@@ -172,6 +178,7 @@ namespace DepthMapExtractor
             imageMetadata = ExtractJpegMetadata(options.InputFile);
             logger.Log("The main image has this shape: " + JsonSerializer.Serialize(imageMetadata));
             ExtractDepthMap();
+            logger.Log("Extraction completed");
         }
 
         /// <summary>
@@ -253,9 +260,9 @@ namespace DepthMapExtractor
 
             foreach (XiaomiDepthmap.Sector s in xi.ConfidenceMap)
             {
-                streams.ConfidenceMapRaw?.Write(s.Filler);
-                streams.ConfidenceMapRaw?.Write(s.Data0);
-                streams.ConfidenceMap?.Write(s.Data0);
+                streams.ConfidenceMapRaw?.Write(s.Padding);
+                streams.ConfidenceMapRaw?.Write(s.Data);
+                streams.ConfidenceMap?.Write(s.Data);
             }
             if (options.ConfidenceMapRaw)
                 logger.Log($"Confidence map full size is {streams.ConfidenceMapRaw.BaseStream.Position}");
@@ -263,8 +270,8 @@ namespace DepthMapExtractor
                 logger.Log($"Confidence map payload size is {streams.ConfidenceMap.BaseStream.Position}");
 
             logger.Log($"Depthmap size is {xi.Depthmap.Length}");
-            uint w = xi.ImageInfo2.SizeW;
-            long h = xi.Depthmap.Length / xi.ImageInfo2.SizeW;
+            uint w = xi.DepthmapInfo.DepthmapWidth;
+            long h = xi.Depthmap.Length / w;
             long p = xi.Depthmap.Length - w * h;
 
             logger.Log($"Depthmap width is {w}, height should be {h}, padding should be {p}");

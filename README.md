@@ -32,7 +32,26 @@ It works with:
 ## About Kaitai
 
 This software uses Kaitai for parsing the binary structure of the file.
-The kaitai grammar can be found in `struct.ksy.yaml`. 
+The kaitai grammar can be found in `xiaomi_depthmap.ksy.yaml` and will be also part of 
+https://github.com/kaitai-io/kaitai_struct_formats once finished.
+
+## How to build
+
+From the root folder, it will build in the folder "dist"
+
+`dotnet publish -c Release -o ./dist`
+
+For building with the runtime embedded:
+
+`dotnet publish -r {runtime} -c Release -o ./dist`
+
+Where *runtime* can be:
+
+- win-x64
+- linux-x64
+- osx-x64
+- One of the others listed here https://docs.microsoft.com/en-us/dotnet/core/rid-catalog
+
 
 ## TODO
 
@@ -40,7 +59,8 @@ The kaitai grammar can be found in `struct.ksy.yaml`.
 - Improved the padding, current just mirrors from the available depth image
 - Covert the images to other standard format ( like the Google's one)
 - Understand the structure of the confidence map
-- Documentation
+- Documentation of the software
+- Documentation of the format in a wiki
 
 ## License
 This software is released under MIT license 

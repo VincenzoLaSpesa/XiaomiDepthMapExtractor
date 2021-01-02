@@ -1,15 +1,21 @@
 meta:
   id: xiaomi_depthmap
   endian: le
+  title: Xiaomi depth images
+  license: MIT
+doc: |
+  Parser for Depthmaps embedded in photos taken with last models of Xiaomi phones.
+  Still WIP.
+  See https://github.com/VincenzoLaSpesa/XiaomiDepthMapExtractor for more info.
 seq:
-  - id: fixed_header
-    type: magic_constant
-  - id: image_info1
+  - id: magic
+    contents: "PMPD"
+  - id: image_info
     type: info
   - id: padding
     type: padding80  
-  - id: image_info2
-    type: info2
+  - id: depthmap_info
+    type: type_depthmap_info
   - id: confidence_map
     type: sector
     repeat: until
@@ -18,44 +24,46 @@ seq:
     size-eos: true
     
 types:
-  magic_constant:
-    seq:
-      - id: magic
-        contents: "PMPD"
-      - id: magic2
-        contents: [0x02, 0x00, 0x64, 0x00, 0x01, 0x00, 0x00]
   info:
     seq:
-      - id: int1
+      - id: unknown1
+        type: u2
+      - id: unknown2
+        type: u2
+      - id: unknown3
+        type: u2
+      - id: unknown4
+        type: u1
+      - id: unknown5
         type: u4
-      - id: int2
+      - id: unknown6
         type: u4
-      - id: junk1
+      - id: padding1
         size: 5
-      - id: int3
+      - id: unknown7
         type: u4
-      - id: junk2
+      - id: padding2
         type: u4
   padding80:
     seq:
-    - id: junk
+    - id: padding
       size: 0x400
 
-  info2:
+  type_depthmap_info:
     seq:
-    - id: padding0
+    - id: padding
       size: 4
-    - id: size_w
+    - id: depthmap_width
       type: u4
-    - id: int1
+    - id: unknown1
       type: u4
-    - id: data0
+    - id: data
       size: 1012
   sector:
     seq:
-      - id: filler
+      - id: padding
         size: 128
-      - id: data0
+      - id: data
         size: 1024
     instances: 
       lookahead_data0:

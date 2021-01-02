@@ -4,6 +4,12 @@ using System.Collections.Generic;
 
 namespace Kaitai
 {
+
+    /// <summary>
+    /// Parser for Depthmaps embedded in photos taken with last models of Xiaomi phones.
+    /// Still WIP.
+    /// See https://github.com/VincenzoLaSpesa/XiaomiDepthMapExtractor for more info.
+    /// </summary>
     public partial class XiaomiDepthmap : KaitaiStruct
     {
         public static XiaomiDepthmap FromFile(string fileName)
@@ -19,10 +25,14 @@ namespace Kaitai
         }
         private void _read()
         {
-            _fixedHeader = new MagicConstant(m_io, this, m_root);
-            _imageInfo1 = new Info(m_io, this, m_root);
+            _magic = m_io.ReadBytes(4);
+            if (!((KaitaiStream.ByteArrayCompare(Magic, new byte[] { 80, 77, 80, 68 }) == 0)))
+            {
+                throw new ValidationNotEqualError(new byte[] { 80, 77, 80, 68 }, Magic, M_Io, "/seq/0");
+            }
+            _imageInfo = new Info(m_io, this, m_root);
             _padding = new Padding80(m_io, this, m_root);
-            _imageInfo2 = new Info2(m_io, this, m_root);
+            _depthmapInfo = new TypeDepthmapInfo(m_io, this, m_root);
             _confidenceMap = new List<Sector>();
             {
                 var i = 0;
@@ -35,14 +45,14 @@ namespace Kaitai
             }
             _depthmap = m_io.ReadBytesFull();
         }
-        public partial class MagicConstant : KaitaiStruct
+        public partial class Info : KaitaiStruct
         {
-            public static MagicConstant FromFile(string fileName)
+            public static Info FromFile(string fileName)
             {
-                return new MagicConstant(new KaitaiStream(fileName));
+                return new Info(new KaitaiStream(fileName));
             }
 
-            public MagicConstant(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
+            public Info(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
             {
                 m_parent = p__parent;
                 m_root = p__root;
@@ -50,23 +60,93 @@ namespace Kaitai
             }
             private void _read()
             {
-                _magic = m_io.ReadBytes(4);
-                if (!((KaitaiStream.ByteArrayCompare(Magic, new byte[] { 80, 77, 80, 68 }) == 0)))
-                {
-                    throw new ValidationNotEqualError(new byte[] { 80, 77, 80, 68 }, Magic, M_Io, "/types/magic_constant/seq/0");
-                }
-                _magic2 = m_io.ReadBytes(7);
-                if (!((KaitaiStream.ByteArrayCompare(Magic2, new byte[] { 2, 0, 100, 0, 1, 0, 0 }) == 0)))
-                {
-                    throw new ValidationNotEqualError(new byte[] { 2, 0, 100, 0, 1, 0, 0 }, Magic2, M_Io, "/types/magic_constant/seq/1");
-                }
+                _unknown1 = m_io.ReadU2le();
+                _unknown2 = m_io.ReadU2le();
+                _unknown3 = m_io.ReadU2le();
+                _unknown4 = m_io.ReadU1();
+                _unknown5 = m_io.ReadU4le();
+                _unknown6 = m_io.ReadU4le();
+                _padding1 = m_io.ReadBytes(5);
+                _unknown7 = m_io.ReadU4le();
+                _padding2 = m_io.ReadU4le();
             }
-            private byte[] _magic;
-            private byte[] _magic2;
+            private ushort _unknown1;
+            private ushort _unknown2;
+            private ushort _unknown3;
+            private byte _unknown4;
+            private uint _unknown5;
+            private uint _unknown6;
+            private byte[] _padding1;
+            private uint _unknown7;
+            private uint _padding2;
             private XiaomiDepthmap m_root;
             private XiaomiDepthmap m_parent;
-            public byte[] Magic { get { return _magic; } }
-            public byte[] Magic2 { get { return _magic2; } }
+            public ushort Unknown1 { get { return _unknown1; } }
+            public ushort Unknown2 { get { return _unknown2; } }
+            public ushort Unknown3 { get { return _unknown3; } }
+            public byte Unknown4 { get { return _unknown4; } }
+            public uint Unknown5 { get { return _unknown5; } }
+            public uint Unknown6 { get { return _unknown6; } }
+            public byte[] Padding1 { get { return _padding1; } }
+            public uint Unknown7 { get { return _unknown7; } }
+            public uint Padding2 { get { return _padding2; } }
+            public XiaomiDepthmap M_Root { get { return m_root; } }
+            public XiaomiDepthmap M_Parent { get { return m_parent; } }
+        }
+        public partial class Padding80 : KaitaiStruct
+        {
+            public static Padding80 FromFile(string fileName)
+            {
+                return new Padding80(new KaitaiStream(fileName));
+            }
+
+            public Padding80(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
+            {
+                m_parent = p__parent;
+                m_root = p__root;
+                _read();
+            }
+            private void _read()
+            {
+                _padding = m_io.ReadBytes(1024);
+            }
+            private byte[] _padding;
+            private XiaomiDepthmap m_root;
+            private XiaomiDepthmap m_parent;
+            public byte[] Padding { get { return _padding; } }
+            public XiaomiDepthmap M_Root { get { return m_root; } }
+            public XiaomiDepthmap M_Parent { get { return m_parent; } }
+        }
+        public partial class TypeDepthmapInfo : KaitaiStruct
+        {
+            public static TypeDepthmapInfo FromFile(string fileName)
+            {
+                return new TypeDepthmapInfo(new KaitaiStream(fileName));
+            }
+
+            public TypeDepthmapInfo(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
+            {
+                m_parent = p__parent;
+                m_root = p__root;
+                _read();
+            }
+            private void _read()
+            {
+                _padding = m_io.ReadBytes(4);
+                _depthmapWidth = m_io.ReadU4le();
+                _unknown1 = m_io.ReadU4le();
+                _data = m_io.ReadBytes(1012);
+            }
+            private byte[] _padding;
+            private uint _depthmapWidth;
+            private uint _unknown1;
+            private byte[] _data;
+            private XiaomiDepthmap m_root;
+            private XiaomiDepthmap m_parent;
+            public byte[] Padding { get { return _padding; } }
+            public uint DepthmapWidth { get { return _depthmapWidth; } }
+            public uint Unknown1 { get { return _unknown1; } }
+            public byte[] Data { get { return _data; } }
             public XiaomiDepthmap M_Root { get { return m_root; } }
             public XiaomiDepthmap M_Parent { get { return m_parent; } }
         }
@@ -87,8 +167,8 @@ namespace Kaitai
             }
             private void _read()
             {
-                _filler = m_io.ReadBytes(128);
-                _data0 = m_io.ReadBytes(1024);
+                _padding = m_io.ReadBytes(128);
+                _data = m_io.ReadBytes(1024);
             }
             private bool f_lookaheadData0;
             private byte[] _lookaheadData0;
@@ -119,120 +199,27 @@ namespace Kaitai
                     return _hasNext;
                 }
             }
-            private byte[] _filler;
-            private byte[] _data0;
+            private byte[] _padding;
+            private byte[] _data;
             private XiaomiDepthmap m_root;
             private XiaomiDepthmap m_parent;
-            public byte[] Filler { get { return _filler; } }
-            public byte[] Data0 { get { return _data0; } }
+            public byte[] Padding { get { return _padding; } }
+            public byte[] Data { get { return _data; } }
             public XiaomiDepthmap M_Root { get { return m_root; } }
             public XiaomiDepthmap M_Parent { get { return m_parent; } }
         }
-        public partial class Info : KaitaiStruct
-        {
-            public static Info FromFile(string fileName)
-            {
-                return new Info(new KaitaiStream(fileName));
-            }
-
-            public Info(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
-            {
-                m_parent = p__parent;
-                m_root = p__root;
-                _read();
-            }
-            private void _read()
-            {
-                _int1 = m_io.ReadU4le();
-                _int2 = m_io.ReadU4le();
-                _junk1 = m_io.ReadBytes(5);
-                _int3 = m_io.ReadU4le();
-                _junk2 = m_io.ReadU4le();
-            }
-            private uint _int1;
-            private uint _int2;
-            private byte[] _junk1;
-            private uint _int3;
-            private uint _junk2;
-            private XiaomiDepthmap m_root;
-            private XiaomiDepthmap m_parent;
-            public uint Int1 { get { return _int1; } }
-            public uint Int2 { get { return _int2; } }
-            public byte[] Junk1 { get { return _junk1; } }
-            public uint Int3 { get { return _int3; } }
-            public uint Junk2 { get { return _junk2; } }
-            public XiaomiDepthmap M_Root { get { return m_root; } }
-            public XiaomiDepthmap M_Parent { get { return m_parent; } }
-        }
-        public partial class Info2 : KaitaiStruct
-        {
-            public static Info2 FromFile(string fileName)
-            {
-                return new Info2(new KaitaiStream(fileName));
-            }
-
-            public Info2(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
-            {
-                m_parent = p__parent;
-                m_root = p__root;
-                _read();
-            }
-            private void _read()
-            {
-                _padding0 = m_io.ReadBytes(4);
-                _sizeW = m_io.ReadU4le();
-                _int1 = m_io.ReadU4le();
-                _data0 = m_io.ReadBytes(1012);
-            }
-            private byte[] _padding0;
-            private uint _sizeW;
-            private uint _int1;
-            private byte[] _data0;
-            private XiaomiDepthmap m_root;
-            private XiaomiDepthmap m_parent;
-            public byte[] Padding0 { get { return _padding0; } }
-            public uint SizeW { get { return _sizeW; } }
-            public uint Int1 { get { return _int1; } }
-            public byte[] Data0 { get { return _data0; } }
-            public XiaomiDepthmap M_Root { get { return m_root; } }
-            public XiaomiDepthmap M_Parent { get { return m_parent; } }
-        }
-        public partial class Padding80 : KaitaiStruct
-        {
-            public static Padding80 FromFile(string fileName)
-            {
-                return new Padding80(new KaitaiStream(fileName));
-            }
-
-            public Padding80(KaitaiStream p__io, XiaomiDepthmap p__parent = null, XiaomiDepthmap p__root = null) : base(p__io)
-            {
-                m_parent = p__parent;
-                m_root = p__root;
-                _read();
-            }
-            private void _read()
-            {
-                _junk = m_io.ReadBytes(1024);
-            }
-            private byte[] _junk;
-            private XiaomiDepthmap m_root;
-            private XiaomiDepthmap m_parent;
-            public byte[] Junk { get { return _junk; } }
-            public XiaomiDepthmap M_Root { get { return m_root; } }
-            public XiaomiDepthmap M_Parent { get { return m_parent; } }
-        }
-        private MagicConstant _fixedHeader;
-        private Info _imageInfo1;
+        private byte[] _magic;
+        private Info _imageInfo;
         private Padding80 _padding;
-        private Info2 _imageInfo2;
+        private TypeDepthmapInfo _depthmapInfo;
         private List<Sector> _confidenceMap;
         private byte[] _depthmap;
         private XiaomiDepthmap m_root;
         private KaitaiStruct m_parent;
-        public MagicConstant FixedHeader { get { return _fixedHeader; } }
-        public Info ImageInfo1 { get { return _imageInfo1; } }
+        public byte[] Magic { get { return _magic; } }
+        public Info ImageInfo { get { return _imageInfo; } }
         public Padding80 Padding { get { return _padding; } }
-        public Info2 ImageInfo2 { get { return _imageInfo2; } }
+        public TypeDepthmapInfo DepthmapInfo { get { return _depthmapInfo; } }
         public List<Sector> ConfidenceMap { get { return _confidenceMap; } }
         public byte[] Depthmap { get { return _depthmap; } }
         public XiaomiDepthmap M_Root { get { return m_root; } }
