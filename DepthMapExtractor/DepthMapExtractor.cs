@@ -12,36 +12,6 @@ using System.Text.RegularExpressions;
 
 namespace DepthMapExtractor
 {
-    public class Options
-    {
-        [Option('v', "verbose", Required = false, HelpText = "Write output to stdout.", Default =true)]
-        public bool Verbose { get; set; } = true;
-
-        [Option('l', "log", Required = false, HelpText = "Write to a logfile too.")]
-        public bool Log { get; set; }
-
-        [Option('c', "confidence_map", Required = false, HelpText = "Extract the confidence map")]
-        public bool ConfidenceMap { get; set; }
-
-        [Option('C', "confidence_map_raw", Required = false, HelpText = "Extract the confidence map")]
-        public bool ConfidenceMapRaw { get; set; }
-
-        [Option('d', "depthmap", Required = false, HelpText = "Extracts the depthmap as a png", Default = true)]
-        public bool Depthmap { get; set; } = true;
-
-        [Option('D', "depthmap_raw", Required = false, HelpText = "Extract the raw depthmap")]
-        public bool DepthmapRaw { get; set; }
-
-        [Option('s', "sub_images", Required = false, HelpText = "Extracts all the subimages instead of just the first one")]
-        public bool SubImages { get; set; }
-
-        [Option('i', "input", Required = true, HelpText = "Input file")]
-        public string InputFile { get; set; }
-
-        [Option('o', "output", Required = true, HelpText = "Output file")]
-        public string OutputFile { get; set; }
-    }
-
     internal class Logger : IDisposable
     {
         readonly StreamWriter logfile;
@@ -76,9 +46,11 @@ namespace DepthMapExtractor
 
     internal struct ImageData
     {
-        public int H { get; set; }
-        public int W { get; set; }
+        public int Height { get; set; }
+        public int Width { get; set; }
         public RotateFlipType RotateFlip { get; set; }
+
+        public float Ratio { get { return (float)Width / Height; } }
     }
 
     /// <summary>
@@ -88,8 +60,8 @@ namespace DepthMapExtractor
     {
         public BinaryWriter ConfidenceMap;
         public BinaryWriter ConfidenceMapRaw;
-        public BinaryWriter DeapthMapRaw;
-        public BinaryReader DeapthMapSector;
+        public BinaryWriter DepthMapRaw;
+        public BinaryReader DepthMapSector;
 
         public Streams(string basename, bool confidenceMap, bool confidenceMapRaw, bool deapthMapRaw)
             => Init(basename, confidenceMap, confidenceMapRaw, deapthMapRaw);
@@ -108,15 +80,15 @@ namespace DepthMapExtractor
             if (confidenceMap)
                 ConfidenceMap = new BinaryWriter(File.Open(basename + "_ConfidenceMapStripped.raw", FileMode.Create));
             if (deapthMapRaw)
-                DeapthMapRaw = new BinaryWriter(File.Open(basename + "_DepthMap.raw", FileMode.Create));
+                DepthMapRaw = new BinaryWriter(File.Open(basename + "_DepthMap.raw", FileMode.Create));
         }
 
         public void Dispose()
         {
-            DeapthMapRaw?.Dispose();
+            DepthMapRaw?.Dispose();
             ConfidenceMap?.Dispose();
-            DeapthMapRaw?.Dispose();
-            DeapthMapSector?.Dispose();
+            DepthMapRaw?.Dispose();
+            DepthMapSector?.Dispose();
         }
     }
 
@@ -166,7 +138,7 @@ namespace DepthMapExtractor
         {
             options = setup;
             streams = new Streams(setup);
-            if(options.Log)
+            if (options.Log)
                 logger = new Logger(setup.OutputFile + ".log");
             else
                 logger = new Logger();
@@ -190,8 +162,8 @@ namespace DepthMapExtractor
         {
             ImageData metadata = new ImageData();
             Image img = Image.FromFile(filename);
-            metadata.H = img.Height;
-            metadata.W = img.Width;
+            metadata.Height = img.Height;
+            metadata.Width = img.Width;
 
             // Read orientation tag
             metadata.RotateFlip = RotateFlipType.RotateNoneFlipNone;
@@ -221,11 +193,10 @@ namespace DepthMapExtractor
             logger.Log("Extracting xml from " + filename);
             const string token = "MiCamera:XMPMeta=";
             binaryReader.BaseStream.Seek(0x3A7, SeekOrigin.Begin);
-            string blob = Encoding.UTF8.GetString(binaryReader.ReadBytes(4096));
-            var blobs = blob.Split(token);
-            if (blobs.Length < 2)
+            KNPSearch finder = new KNPSearch(token.ToCharArray());
+            if (finder.FindNext(binaryReader) < 0) // it moves the stream
                 return default;
-            blob = blobs[1];
+            string blob = Encoding.UTF8.GetString(binaryReader.ReadBytes(1024));
             blob = blob.Split("/>")[0];
             blob = System.Web.HttpUtility.HtmlDecode(blob);
             string pattern = @"([a-zA-Z]+)=['""](.*?)['""]";
@@ -247,7 +218,7 @@ namespace DepthMapExtractor
 
             try
             {
-                var xs = new KaitaiStream(streams.DeapthMapSector.BaseStream);
+                var xs = new KaitaiStream(streams.DepthMapSector.BaseStream);
                 xi = new XiaomiDepthmap(xs);
                 logger.Log("It looks like the stream contains a Xiaomi depth map");
             }
@@ -256,7 +227,7 @@ namespace DepthMapExtractor
                 logger.Log("It looks like the stream DOES NOT contain a Xiaomi depth map\n" + e.Message);
                 throw;
             }
-            
+
 
             foreach (XiaomiDepthmap.Sector s in xi.ConfidenceMap)
             {
@@ -270,18 +241,29 @@ namespace DepthMapExtractor
                 logger.Log($"Confidence map payload size is {streams.ConfidenceMap.BaseStream.Position}");
 
             logger.Log($"Depthmap size is {xi.Depthmap.Length}");
-            uint w = xi.DepthmapInfo.DepthmapWidth;
-            long h = xi.Depthmap.Length / w;
-            long p = xi.Depthmap.Length - w * h;
 
-            logger.Log($"Depthmap width is {w}, height should be {h}, padding should be {p}");
-            streams.DeapthMapRaw?.Write(xi.Depthmap);
-            using Bitmap depthUnscaled = new Bitmap((int)w - Constants.NPaddingPixels, (int)h);
-            for (long i = p; i < xi.Depthmap.Length; i++)
+            long width, height;
+            width = xi.DepthmapInfo.ImageWidth;
+            height = xi.Depthmap.Length / width;
+
+            // padding before the data
+            long padding = xi.Depthmap.Length - width * height;
+            
+            // the size the map will have after the padding
+            long padded_lenght = xi.DepthmapInfo.ImageWidth * xi.DepthmapInfo.ImageHeightPadded;
+
+            logger.Log($"Depthmap valid size is  {width}x{height} as WxH, ratio is {(float)width / height}, padding should be {padding}");
+            logger.Log($"Depthmap declared size is {xi.DepthmapInfo.ImageWidth}x{xi.DepthmapInfo.ImageHeightPadded} --> {(float)xi.DepthmapInfo.ImageWidth / xi.DepthmapInfo.ImageHeightPadded} ");
+            if(padded_lenght > xi.Depthmap.Length)
+                logger.Log($"Declared size would not fit into the file");
+
+            streams.DepthMapRaw?.Write(xi.Depthmap);
+            using Bitmap depthUnscaled = new Bitmap((int)width - Constants.NPaddingPixels, (int)height);
+            for (long i = padding; i < xi.Depthmap.Length; i++)
             {
-                long j = i - p;
-                int x = (int)(j % w);
-                int y = (int)(h - 1 - j / w); // depthmap is flipped
+                long j = i - padding;
+                int x = (int)(j % width);
+                int y = (int)(height - 1 - j / width); // depthmap is flipped
                 int gvalue = 255 - xi.Depthmap[i]; // black is the farest point
                 Color c = Color.FromArgb(gvalue, gvalue, gvalue);
                 if (x < depthUnscaled.Width)
@@ -293,21 +275,16 @@ namespace DepthMapExtractor
                 return;
             }
 
-            depthUnscaled.RotateFlip(imageMetadata.RotateFlip); // maybe image is flipped too
-            using Bitmap depthScaled = new Bitmap(imageMetadata.H, imageMetadata.W);
-            var canvas = System.Drawing.Graphics.FromImage(depthScaled);
-            float zoom = (float)depthScaled.Height / depthUnscaled.Height;
-            canvas.DrawImage(depthUnscaled, depthScaled.Width - depthUnscaled.Width * zoom, 0, depthUnscaled.Width * zoom, depthUnscaled.Height * zoom);
+            using Canvas unscaledCanvas = new Canvas((int)xi.DepthmapInfo.ImageWidth , (int)xi.DepthmapInfo.ImageHeightPadded);
+            unscaledCanvas.FillWithColor(128);
+            unscaledCanvas.Paste(depthUnscaled, Canvas.Corner.Se, true);
 
-            // Mirror the left side of the image and use it as a background
-            depthUnscaled.RotateFlip(RotateFlipType.RotateNoneFlipX);
-            int xx = (int)(depthScaled.Width - depthUnscaled.Width * zoom);
-            var sourcePosition = new Rectangle(xx, 0, depthUnscaled.Width-xx-1, depthUnscaled.Height);
-            var destPosition = new Rectangle(0, 0, xx+1, (int)(depthUnscaled.Height * zoom));
-            
-            canvas.DrawImage(depthUnscaled, destPosition, sourcePosition, GraphicsUnit.Pixel);
+            using Canvas outputCanvas = new Canvas(imageMetadata.Width, imageMetadata.Height);
+            outputCanvas.Graphics.DrawImage(unscaledCanvas.Bitmap, 0, 0, outputCanvas.Bitmap.Width, outputCanvas.Bitmap.Height);
 
-            depthScaled.Save(options.OutputFile + "_depth.png", ImageFormat.Png);
+            if (xi.DepthmapInfo.IsLandscape == 0)
+                outputCanvas.Bitmap.RotateFlip(RotateFlipType.Rotate90FlipNone);
+            outputCanvas.Save(options.OutputFile + "_depth.png");
         }
 
         private List<String> SeparateToFiles(string filename)
@@ -355,16 +332,16 @@ namespace DepthMapExtractor
                 if (i < 2 || options.SubImages)
                 {
                     logger.Log($"Writing {chunkname}");
-                    using (BinaryWriter chunk = new BinaryWriter(File.Open(chunkname, FileMode.CreateNew)))
+                    using (BinaryWriter chunk = new BinaryWriter(File.Open(chunkname, options.FileWritingMode)))
                         chunk.Write(wholeFile[cutpoints[i - 1]..cutpoints[i]]);
                     flist.Add(chunkname);
                 }
-                if (i + 1 == cutpoints.Count) 
+                if (i + 1 == cutpoints.Count)
                 { // load the depthmap sector as a file if saved or as a memory stream if not
                     if (options.SubImages)
-                        streams.DeapthMapSector = new BinaryReader(File.Open(chunkname, FileMode.Open));
-                    else 
-                        streams.DeapthMapSector = new BinaryReader(new MemoryStream(wholeFile[cutpoints[i - 1]..cutpoints[i]]));
+                        streams.DepthMapSector = new BinaryReader(File.Open(chunkname, FileMode.Open));
+                    else
+                        streams.DepthMapSector = new BinaryReader(new MemoryStream(wholeFile[cutpoints[i - 1]..cutpoints[i]]));
                 }
 
             }
