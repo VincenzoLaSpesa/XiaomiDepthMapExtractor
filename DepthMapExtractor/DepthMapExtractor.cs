@@ -193,7 +193,7 @@ namespace DepthMapExtractor
             logger.Log("Extracting xml from " + filename);
             const string token = "MiCamera:XMPMeta=";
             binaryReader.BaseStream.Seek(0x3A7, SeekOrigin.Begin);
-            KNPSearch finder = new KNPSearch(token.ToCharArray());
+            KMPSearch finder = new KMPSearch(token.ToCharArray());
             if (finder.FindNext(binaryReader) < 0) // it moves the stream
                 return default;
             string blob = Encoding.UTF8.GetString(binaryReader.ReadBytes(1024));
@@ -276,7 +276,7 @@ namespace DepthMapExtractor
             }
 
             using Canvas unscaledCanvas = new Canvas((int)xi.DepthmapInfo.ImageWidth , (int)xi.DepthmapInfo.ImageHeightPadded);
-            unscaledCanvas.FillWithColor(128);
+            //unscaledCanvas.FillWithColor(0,128,0);
             unscaledCanvas.Paste(depthUnscaled, Canvas.Corner.Se, true);
 
             using Canvas outputCanvas = new Canvas(imageMetadata.Width, imageMetadata.Height);

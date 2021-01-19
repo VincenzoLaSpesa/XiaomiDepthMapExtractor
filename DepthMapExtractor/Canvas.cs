@@ -31,7 +31,7 @@ namespace DepthMapExtractor
         /// Paste a bitmap starting from a corner, no scaling.
         /// </summary>
         /// <param name="b">the image</param>
-        /// <param name="c">the corner</param>
+        /// <param name="c">the corner where the image starts</param>
         /// <param name="autoFill">if true it will cover the entire canvas surface with fake data</param>
         /// <returns></returns>
         public bool Paste(Image b, Corner c, bool autoFill = false) 
@@ -40,6 +40,8 @@ namespace DepthMapExtractor
             int deltaH = Bitmap.Height - b.Height;
             if (deltaH < 0 || deltaW < 0)
                 return false;
+            
+            // Coordinate of the origin (SW) of the source image into the destination image
             Point p = c switch
             {
                 Corner.Nw => new Point(0, deltaH),

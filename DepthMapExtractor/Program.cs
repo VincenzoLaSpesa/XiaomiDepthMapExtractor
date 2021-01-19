@@ -57,7 +57,7 @@ namespace DepthMapExtractor
             { // Debug mode
                 Options o = new Options
                 {
-                    InputFile = "ImageP.jpg",
+                    InputFile = "ImageP2.jpg",
                     SubImages = true,
                     Overwrite = true
                 };

@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <None Remove="Image.jpg" />
+    <None Remove="XiaomiDepthmap.cs_backup" />
   </ItemGroup>
 
   <ItemGroup>
