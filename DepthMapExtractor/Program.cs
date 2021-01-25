@@ -59,7 +59,8 @@ namespace DepthMapExtractor
                 {
                     InputFile = "ImageP2.jpg",
                     SubImages = true,
-                    Overwrite = true
+                    Overwrite = true,
+                    Log = true
                 };
                 using DepthMapExtractor depthMapExtractor = new DepthMapExtractor(o);
                 depthMapExtractor.Process();

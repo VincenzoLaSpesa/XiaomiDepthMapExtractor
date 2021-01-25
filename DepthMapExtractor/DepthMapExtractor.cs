@@ -12,6 +12,14 @@ using System.Text.RegularExpressions;
 
 namespace DepthMapExtractor
 {
+    static class Helper {
+        public static bool EOF(this BinaryReader binaryReader)
+        {
+            var bs = binaryReader.BaseStream;
+            return (bs.Position == bs.Length);
+        }
+    }
+    
     internal class Logger : IDisposable
     {
         readonly StreamWriter logfile;
@@ -61,7 +69,7 @@ namespace DepthMapExtractor
         public BinaryWriter ConfidenceMap;
         public BinaryWriter ConfidenceMapRaw;
         public BinaryWriter DepthMapRaw;
-        public BinaryReader DepthMapSector;
+        public BinaryReader DepthMapSector = null;
 
         public Streams(string basename, bool confidenceMap, bool confidenceMapRaw, bool deapthMapRaw)
             => Init(basename, confidenceMap, confidenceMapRaw, deapthMapRaw);
@@ -96,6 +104,8 @@ namespace DepthMapExtractor
     {
         public static readonly byte[] EOI = new byte[] { 0xFF, 0xD9 };// Jpeg marker for end of image
         public static readonly byte[] JPEG = new byte[] { 0xFF, 0xD8, 0xFF, 0xE1 };// Jpeg header 
+        public static readonly byte[] DMP1 = new byte[] { 80, 77, 80, 68 };// Dmap header PMPD
+        public static readonly byte[] DMP2 = new byte[] { 0x10, 0, 0xFF, 0xFF };// Other dmap
         public const short ExifOrientationID = 0x112; //274, the exif tag used for orientation
         public const short NPaddingPixels = 4; //number of padding pixels at the end of every row
     }
@@ -193,7 +203,7 @@ namespace DepthMapExtractor
             logger.Log("Extracting xml from " + filename);
             const string token = "MiCamera:XMPMeta=";
             binaryReader.BaseStream.Seek(0x3A7, SeekOrigin.Begin);
-            KMPSearch finder = new KMPSearch(token.ToCharArray());
+            KMPSearch finder = new KMPSearch(token);
             if (finder.FindNext(binaryReader) < 0) // it moves the stream
                 return default;
             string blob = Encoding.UTF8.GetString(binaryReader.ReadBytes(1024));
@@ -209,6 +219,8 @@ namespace DepthMapExtractor
             foreach (var kv in metadata)
                 logger.Log($"{kv.Key} -> {kv.Value}");
 
+            if(!metadata.ContainsKey("depthlength"))
+                logger.Log("The depth lenght is missing in the metadata");
             return metadata;
         }
 
@@ -287,6 +299,12 @@ namespace DepthMapExtractor
             outputCanvas.Save(options.OutputFile + "_depth.png");
         }
 
+        /// <summary>
+        /// Extracts all the subimages from the file.
+        /// (The implementation could be simplified assuming that the depthmap is always the last file)
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
         private List<String> SeparateToFiles(string filename)
         {
             long length = new System.IO.FileInfo(filename).Length;
@@ -294,67 +312,92 @@ namespace DepthMapExtractor
             logger.Log("Extracting all sub files from " + filename);
             logger.Log($"Total lenght: {length} ({lengthMB:F})");
             var metadata = ExtractXmlMetadata(filename);
-            byte[] wholeFile = File.ReadAllBytes(filename);
-            int position = 0;
-            List<int> cutpoints = new List<int> { 0 };
-            while (position < length)
+
+            const short JPEG = 0;
+            const short DMAP = 1;
+            const short UNKN = 2;
+            // [ [begin, lenght, kind] ... ]
+            List<Tuple<int, int, short>> cutsInfo = new List<Tuple<int, int, short>>();
+
+            long declaredLenght = -1;
+            if (metadata.TryGetValue("depthlength", out string rawValue))
+                long.TryParse(rawValue, out declaredLenght);
+
+            // BinaryReader directly from a file is terribly slow and i don't want to write a buffered version
+            using BinaryReader binaryReader =  new BinaryReader(new MemoryStream(File.ReadAllBytes(filename)));
+
+            KMPSearch finder = new KMPSearch(Constants.EOI);
+            long from = 0;
+            long to = 0;
+            while (from < length) 
             {
-                position = Array.IndexOf(wholeFile, Constants.EOI[1], ++position);
-                if (position < 0)
-                    break;
-                if (wholeFile[position - 1] == Constants.EOI[0])
-                {
-                    logger.Log($"Found a chunk at {position}, starts from {cutpoints.Last()}, the size is {position - cutpoints.Last()}");
-                    cutpoints.Add(position + 1);
+                binaryReader.BaseStream.Seek(from, SeekOrigin.Begin);
+                byte[] magic = binaryReader.ReadBytes(4);
+                to = finder.FindNext(binaryReader);
+                
+                short kind = UNKN;
+
+                if (magic.SequenceEqual(Constants.JPEG))
+                    kind = JPEG;
+                else if (magic.SequenceEqual(Constants.DMP1))
+                {// Depthmap has no delimiters, so i will just jump forward using the declared lenght
+                    kind = DMAP;
+                    if (declaredLenght > 0)
+                    {
+                        to = from + declaredLenght + 1;
+                        if (to > length)
+                            logger.Log($"The depthmap is shorter than it's supposed to be");
+                    }
+                    else
+                    {
+                        logger.Log($"XML metadata are malformed. Lenght is not declared in the metadata");
+                    }
                 }
-            }
+                else if (magic.SequenceEqual(Constants.DMP2)) 
+                {
+                    logger.Log($"This kind of depthmap is not yet supported");
+                    var delta = length - from;
+                    if(delta < declaredLenght)
+                        logger.Log($"There are {length - to} bytes left on the file, {declaredLenght} are needed. The dephmap is compressed");
+                    to = from+declaredLenght + 1;
+                }
 
-            long x = length - cutpoints.Last();
-            if (x == 0)
-            {
-                logger.Log($"There is no depthmap at the end of the file");
-                return default;
-            }
+                if (to < 0)
+                    to = length;
 
-            logger.Log($"Found a chunk at {length}, starts from {cutpoints.Last()}, the size is {x}");
-            cutpoints.Add((int)length);
+                cutsInfo.Add(new Tuple<int, int, short>((int)from, (int)(to - 1 - from), kind));
+                from = to;
+            }
 
             List<String> flist = new List<String>();
-            for (int i = 1; i < cutpoints.Count; i++)
+            for (int i = 0; i < cutsInfo.Count; i++) 
             {
-                string chunkname = options.OutputFile;
-                var magic = wholeFile[cutpoints[i - 1]..(cutpoints[i - 1] + Constants.JPEG.Length)];
-                if (magic.SequenceEqual(Constants.JPEG))
-                    chunkname += $"{i}.jpg";
-                else
-                    chunkname += $"{i}.raw";
+                logger.Log($"Found a chunk starting at {cutsInfo[i].Item1}, the size is {cutsInfo[i].Item2}, kind is {cutsInfo[i].Item3}");
 
-                if (i < 2 || options.SubImages)
+                if (i == 0 || options.SubImages) 
                 {
+                    string chunkname = options.OutputFile;
+                    if (cutsInfo[i].Item3 == JPEG)
+                        chunkname += $"{i}.jpg";
+                    else
+                        chunkname += $"{i}.raw";
+                    
                     logger.Log($"Writing {chunkname}");
+                    binaryReader.BaseStream.Seek(cutsInfo[i].Item1, SeekOrigin.Begin);
                     using (BinaryWriter chunk = new BinaryWriter(File.Open(chunkname, options.FileWritingMode)))
-                        chunk.Write(wholeFile[cutpoints[i - 1]..cutpoints[i]]);
+                        chunk.Write(binaryReader.ReadBytes(cutsInfo[i].Item2));
                     flist.Add(chunkname);
                 }
-                if (i + 1 == cutpoints.Count)
-                { // load the depthmap sector as a file if saved or as a memory stream if not
-                    if (options.SubImages)
-                        streams.DepthMapSector = new BinaryReader(File.Open(chunkname, FileMode.Open));
-                    else
-                        streams.DepthMapSector = new BinaryReader(new MemoryStream(wholeFile[cutpoints[i - 1]..cutpoints[i]]));
+                
+                if (cutsInfo[i].Item3 == DMAP)
+                {
+                        binaryReader.BaseStream.Seek(cutsInfo[i].Item1, SeekOrigin.Begin);
+                        streams.DepthMapSector = new BinaryReader(new MemoryStream(binaryReader.ReadBytes(cutsInfo[i].Item2)));
                 }
-
             }
-            if (metadata.TryGetValue("depthlength", out string rawValue) && long.TryParse(rawValue, out long longValue))
-            {
-                long extractedLenght = cutpoints[^1] - cutpoints[^2];
-                if (extractedLenght == longValue)
-                    logger.Log($"The extracted depthmap matches the xml metadata value {longValue}");
-                else
-                    logger.Log($"The extracted depthmap NOES NOT match the xml metadata value.\n Metadata is {longValue}, extracted depthmap is {extractedLenght}");
-            }
-            else
-                logger.Log("XML metadata are malformed");
+            if (streams.DepthMapSector == null)
+                logger.Log($"There is not depthmap in the file");
+            
             return flist;
         }
 
