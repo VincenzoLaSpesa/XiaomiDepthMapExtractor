@@ -1,18 +1,56 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
-namespace KaitaiDummy
+namespace DepthMapExtractor
 {
-    public abstract class Utils
+    public class Logger : IDisposable
     {
-        public static string HexDump(byte[] data)
+        readonly StreamWriter logfile;
+        public Logger(string outputFile = null)
+        {
+            if (outputFile == null || outputFile.Length == 0)
+                return;
+            logfile = new StreamWriter(File.Open(outputFile, FileMode.Append));
+            logfile.WriteLine($"{DateTime.Now} Starting session");
+            logfile.AutoFlush = true;
+        }
+
+        ~Logger()
+        {
+            Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (logfile == null)
+                return;
+            logfile.WriteLine($"{DateTime.Now} Stopping session");
+            logfile.Close();
+        }
+
+        public void Log(string text)
+        {
+            Console.WriteLine(text);
+            logfile?.WriteLine(text);
+        }
+    }
+    public static class Helper
+    {
+        public static bool EOF(this BinaryReader binaryReader)
+        {
+            var bs = binaryReader.BaseStream;
+            return (bs.Position == bs.Length);
+        }
+        public static string HexDump(byte[] data, bool writeAddress = true, bool writeStringDump = true)
         {
             var sb = new StringBuilder();
 
             for (int i = 0; i < data.Length; i += 16)
             {
-                sb.AppendFormat("{0:X8}:", i);
+                if(writeAddress)
+                    sb.AppendFormat("{0:X8}:", i);
 
                 for (int j = i; j < i + 16; ++j)
                 {
@@ -25,22 +63,24 @@ namespace KaitaiDummy
                         sb.Append("  ");
                 }
 
-                sb.Append("  ");
-
-                for (int j = i; j < i + 16; ++j)
+                if (writeStringDump) 
                 {
-                    if (j < data.Length)
-                    {
-                        char c = (char)data[j];
-                        if (c >= ' ' && c <= '~')
-                            sb.Append(c);
-                        else
-                            sb.Append(".");
-                    }
-                    else
-                        sb.Append(" ");
-                }
+                    sb.Append("\t");
 
+                    for (int j = i; j < i + 16; ++j)
+                    {
+                        if (j < data.Length)
+                        {
+                            char c = (char)data[j];
+                            if (c >= ' ' && c <= '~')
+                                sb.Append(c);
+                            else
+                                sb.Append(".");
+                        }
+                        else
+                            sb.Append(" ");
+                    }
+                }
                 sb.AppendLine();
             }
 

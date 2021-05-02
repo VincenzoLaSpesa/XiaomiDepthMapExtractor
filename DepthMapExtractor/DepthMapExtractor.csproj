@@ -7,10 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Utils.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Remove="Image.jpg" />
     <None Remove="XiaomiDepthmap.cs_backup" />
   </ItemGroup>

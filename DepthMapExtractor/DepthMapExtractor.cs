@@ -12,46 +12,6 @@ using System.Text.RegularExpressions;
 
 namespace DepthMapExtractor
 {
-    static class Helper {
-        public static bool EOF(this BinaryReader binaryReader)
-        {
-            var bs = binaryReader.BaseStream;
-            return (bs.Position == bs.Length);
-        }
-    }
-    
-    internal class Logger : IDisposable
-    {
-        readonly StreamWriter logfile;
-        public Logger(string outputFile = null)
-        {
-            if (outputFile == null || outputFile.Length == 0)
-                return;
-            logfile = new StreamWriter(File.Open(outputFile, FileMode.Append));
-            logfile.WriteLine($"{DateTime.Now} Starting session");
-            logfile.AutoFlush = true;
-        }
-
-        ~Logger()
-        {
-            Dispose();
-        }
-
-        public void Dispose()
-        {
-            if (logfile == null)
-                return;
-            logfile.WriteLine($"{DateTime.Now} Stopping session");
-            logfile.Close();
-        }
-
-        public void Log(string text)
-        {
-            Console.WriteLine(text);
-            logfile?.WriteLine(text);
-        }
-    }
-
     internal struct ImageData
     {
         public int Height { get; set; }
@@ -103,6 +63,7 @@ namespace DepthMapExtractor
     static class Constants
     {
         public static readonly byte[] EOI = new byte[] { 0xFF, 0xD9 };// Jpeg marker for end of image
+        public static readonly byte[] SOF0 = new byte[] { 0xFF, 0xC0 };// Start of frame 0
         public static readonly byte[] JPEG = new byte[] { 0xFF, 0xD8, 0xFF, 0xE1 };// Jpeg header 
         public static readonly byte[] DMP1 = new byte[] { 80, 77, 80, 68 };// Dmap header PMPD
         public static readonly byte[] DMP2 = new byte[] { 0x10, 0, 0xFF, 0xFF };// Other dmap
@@ -156,11 +117,18 @@ namespace DepthMapExtractor
 
         public void Process()
         {
-            SeparateToFiles(options.InputFile);
-            imageMetadata = ExtractJpegMetadata(options.InputFile);
-            logger.Log("The main image has this shape: " + JsonSerializer.Serialize(imageMetadata));
-            ExtractDepthMap();
-            logger.Log("Extraction completed");
+            if (File.Exists(options.InputFile))
+            {
+                SeparateToFiles(options.InputFile);
+                imageMetadata = ExtractJpegMetadata(options.InputFile);
+                logger.Log("The main image has this shape: " + JsonSerializer.Serialize(imageMetadata));
+                ExtractDepthMap();
+                logger.Log("Extraction completed");
+            }
+            else 
+            {
+                logger.Log("Can't open the file " + options.InputFile);
+            }
         }
 
         /// <summary>
@@ -198,7 +166,8 @@ namespace DepthMapExtractor
             var magic = binaryReader.ReadBytes(4);
             if (!magic.SequenceEqual(Constants.JPEG))
             {
-                logger.Log("The file does not look like it came from a Xiaomi");
+                logger.Log("The file does not look like it came from a Xiaomi, or the metadata are in a different format");
+                logger.Log("The extraction will probably fail.");
             }
             logger.Log("Extracting xml from " + filename);
             const string token = "MiCamera:XMPMeta=";
@@ -339,27 +308,33 @@ namespace DepthMapExtractor
 
                 if (magic.SequenceEqual(Constants.JPEG))
                     kind = JPEG;
-                else if (magic.SequenceEqual(Constants.DMP1))
-                {// Depthmap has no delimiters, so i will just jump forward using the declared lenght
-                    kind = DMAP;
-                    if (declaredLenght > 0)
-                    {
-                        to = from + declaredLenght + 1;
-                        if (to > length)
-                            logger.Log($"The depthmap is shorter than it's supposed to be");
-                    }
-                    else
-                    {
-                        logger.Log($"XML metadata are malformed. Lenght is not declared in the metadata");
-                    }
-                }
-                else if (magic.SequenceEqual(Constants.DMP2)) 
+                else
                 {
-                    logger.Log($"This kind of depthmap is not yet supported");
-                    var delta = length - from;
-                    if(delta < declaredLenght)
-                        logger.Log($"There are {length - to} bytes left on the file, {declaredLenght} are needed. The dephmap is compressed");
-                    to = from+declaredLenght + 1;
+                    var hdump = Helper.HexDump(magic,false,false);
+                    logger.Log($"Found a depthmap that starts with "+hdump);
+
+                    if (magic.SequenceEqual(Constants.DMP1))
+                    {// Depthmap has no delimiters, so i will just jump forward using the declared lenght
+                        kind = DMAP;
+                        if (declaredLenght > 0)
+                        {
+                            to = from + declaredLenght + 1;
+                            if (to > length)
+                                logger.Log($"The depthmap is shorter than it's supposed to be");
+                        }
+                        else
+                        {
+                            logger.Log($"XML metadata are malformed. Lenght is not declared in the metadata");
+                        }
+                    }
+                    else if (magic.SequenceEqual(Constants.DMP2))
+                    {
+                        logger.Log($"This kind of depthmap is not yet supported");
+                        var delta = length - from;
+                        if (delta < declaredLenght)
+                            logger.Log($"There are {length - to} bytes left on the file, {declaredLenght} are needed. The dephmap is compressed");
+                        to = from + declaredLenght + 1;
+                    }
                 }
 
                 if (to < 0)

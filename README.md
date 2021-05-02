@@ -7,13 +7,16 @@ This is still a work in progress!
 
 The software runs from commandline with `.\DepthMapExtractor [options] inputfile` where options are:
 
+    -v, --verbose               (Default: true) Write output to stdout.
+    -l, --log                   Write to a logfile too.
     -c, --confidence_map        Extract the confidence map
-    -C, --confidence_map_raw    Extract the confidence map
+    -C, --confidence_map_raw    Extract the raw confidence map
     -d, --depthmap              (Default: true) Extracts the depthmap as a png
     -D, --depthmap_raw          Extract the raw depthmap
     -s, --sub_images            Extracts all the subimages instead of just the first one
     -i, --input                 Required. Input file
     -o, --output                Required. Output file
+    --overwrite                 (Default: false) Never overwrite existing files
     --help                      Display this help screen.
     --version                   Display version information.
 
@@ -55,6 +58,7 @@ Where *runtime* can be:
 
 ## TODO
 
+- At least with one of the lens the depthmap has ha totally different format I still can't parse
 - Check compatibility with other models of phones
 - Improved the padding, current just mirrors from the available depth image
 - Covert the images to other standard format ( like the Google's one)

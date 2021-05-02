@@ -17,7 +17,7 @@ namespace DepthMapExtractor
         [Option('c', "confidence_map", Required = false, HelpText = "Extract the confidence map")]
         public bool ConfidenceMap { get; set; }
 
-        [Option('C', "confidence_map_raw", Required = false, HelpText = "Extract the confidence map")]
+        [Option('C', "confidence_map_raw", Required = false, HelpText = "Extract the raw confidence map")]
         public bool ConfidenceMapRaw { get; set; }
 
         [Option('d', "depthmap", Required = false, HelpText = "Extracts the depthmap as a png", Default = true)]
