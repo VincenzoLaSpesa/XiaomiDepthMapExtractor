@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -8,8 +9,10 @@ namespace DepthMapExtractor
     /// <summary>
     /// An implementation of the Knuth-Morris-Pratt algorithm
     /// It finds strings inside streams, reasonably fast.
+    /// 
+    /// The class holds the target string, the BinaryReader where to search in is provided on every call.
     /// </summary>
-    class KMPSearch
+    public class KMPSearch
     {
         public KMPSearch(byte[] pattern)
         {
@@ -23,30 +26,61 @@ namespace DepthMapExtractor
 
         private void BuildBacktrace(byte[] pattern)
         {
-            _pattern = pattern;
             _backtrace = new int[pattern.Length];
-            int a, b;
-            bool flag;
-            for (int c = 1; c < pattern.Length; c++)
+            _pattern = pattern;
+            
+            for (int i = 1; i < pattern.Length; i++)
             {
-                _backtrace[c] = 0;
-                for (a = 1; a < c; a++)
-                {
-                    flag = true;
-                    for (b = 0; b < a; b++) 
-                        flag &= (pattern[c + b - a] == pattern[b]);
-                    if (flag) 
-                        _backtrace[c] = a;
-                }
+                int j = _backtrace[i - 1];
+                while (j > 0 && pattern[i] != pattern[j])
+                    j = _backtrace[j - 1];
+                if (pattern[i] == pattern[j])
+                    j++;
+                _backtrace[i] = j;
             }
         }
 
-        public long FindNext(BinaryReader reader)
+        /*
+                private void BuildBacktrace(byte[] pattern)
+                {
+                    _pattern = pattern;
+                    _backtrace = new int[pattern.Length];
+                    int a, b;
+                    bool flag;
+                    for (int c = 1; c < pattern.Length; c++)
+                    {
+                        _backtrace[c] = 0;
+                        for (a = 1; a < c; a++)
+                        {
+                            flag = true;
+                            for (b = 0; b < a; b++) 
+                                flag &= (pattern[c + b - a] == pattern[b]);
+                            if (flag) 
+                                _backtrace[c] = a;
+                        }
+                    }
+                }
+
+         */
+
+        /// <summary>
+        /// Finds teh next match
+        /// </summary>
+        /// <param name="reader">A valid open binary stream (it will be moved by the function and not rewind back to starting position)</param>
+        /// <param name="includeDelimiter">
+        ///     if TRUE the found string will start with the delimiter.
+        ///     if FALSE the found string will start right after the delimiter.
+        /// </param>
+        /// <returns>The position of the next match, -1 if there are no more matches</returns>
+        public long FindNext(BinaryReader reader, bool includeDelimiter)
         {
+            if (reader.EOF())
+                return -1;
+            
             int goal = _backtrace.Length;
             int stato = 0;
             byte x = reader.ReadByte();
-            while (stato != goal && reader.BaseStream.Position < reader.BaseStream.Length)
+            while (stato != goal && !reader.EOF())
             {
                 if (_pattern[stato] == x)
                 {
@@ -61,8 +95,25 @@ namespace DepthMapExtractor
                 }
             }
             if (stato == goal) 
-                return reader.BaseStream.Position - goal + 1;
+                if(includeDelimiter)
+                    return reader.BaseStream.Position - goal - 1;
+                else
+                    return reader.BaseStream.Position - 1;
+                            
+            
             return -1;
+        }
+
+        public List<long> FindAll(BinaryReader reader, bool includeDelimiter) 
+        {
+            List<long> positions = new List<long>();
+            while(!reader.EOF())
+            {
+                var p = FindNext(reader, includeDelimiter);
+                if (p > -1)
+                    positions.Add(p);
+            }
+            return positions;
         }
 
         private int[] _backtrace;

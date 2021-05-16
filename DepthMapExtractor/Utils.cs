@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace DepthMapExtractor
@@ -38,6 +39,31 @@ namespace DepthMapExtractor
     }
     public static class Helper
     {
+        public static bool SequenceStartsWith(this byte[] stringa, byte[] pattern) 
+        {
+            if (stringa.Length > pattern.Length)
+                return stringa[0..(pattern.Length)].SequenceEqual(pattern);
+            return stringa.SequenceEqual(pattern);
+        }
+
+        public static bool SequenceStartsWith(this byte[] stringa, IEnumerable<byte[]> pattern)
+        {
+            int totallenght = 0;
+            foreach (var chunk in pattern)
+                totallenght += chunk.Length;
+
+            int offset = 0;
+            foreach (var chunk in pattern)
+                if (stringa.Length - offset > chunk.Length)
+                    if (!stringa[offset..(offset + chunk.Length)].SequenceEqual(chunk))
+                        return false;
+                else                   
+                        return false;
+            return true;
+        }
+
+
+
         public static bool EOF(this BinaryReader binaryReader)
         {
             var bs = binaryReader.BaseStream;

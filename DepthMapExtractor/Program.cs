@@ -29,6 +29,9 @@ namespace DepthMapExtractor
         [Option('s', "sub_images", Required = false, HelpText = "Extracts all the subimages instead of just the first one")]
         public bool SubImages { get; set; }
 
+        [Option('s', "trailer", Required = false, HelpText = "Extract all the content after the first image into a single file")]
+        public bool Trailer { get; set; }
+
         [Option('i', "input", Required = true, HelpText = "Input file")]
         public string InputFile { get; set; }
 
@@ -57,10 +60,11 @@ namespace DepthMapExtractor
             { // Debug mode
                 Options o = new Options
                 {
-                    InputFile = "ImageP2.jpg",
+                    InputFile = "..\\..\\..\\..\\..\\dataset\\XiaomiMi10T_RearPortrait.jpg",
                     SubImages = true,
                     Overwrite = true,
-                    Log = true
+                    Log = true,
+                    Trailer = false
                 };
                 using DepthMapExtractor depthMapExtractor = new DepthMapExtractor(o);
                 depthMapExtractor.Process();
