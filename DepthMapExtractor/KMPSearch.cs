@@ -40,29 +40,6 @@ namespace DepthMapExtractor
             }
         }
 
-        /*
-                private void BuildBacktrace(byte[] pattern)
-                {
-                    _pattern = pattern;
-                    _backtrace = new int[pattern.Length];
-                    int a, b;
-                    bool flag;
-                    for (int c = 1; c < pattern.Length; c++)
-                    {
-                        _backtrace[c] = 0;
-                        for (a = 1; a < c; a++)
-                        {
-                            flag = true;
-                            for (b = 0; b < a; b++) 
-                                flag &= (pattern[c + b - a] == pattern[b]);
-                            if (flag) 
-                                _backtrace[c] = a;
-                        }
-                    }
-                }
-
-         */
-
         /// <summary>
         /// Finds teh next match
         /// </summary>
