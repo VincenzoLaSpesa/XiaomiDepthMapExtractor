@@ -3,6 +3,8 @@ Extracts depth information from photos taken with modern Xiaomi phones
 
 This is still a work in progress!
 
+More info about the data format can be found in the wiki here https://github.com/VincenzoLaSpesa/XiaomiDepthMapExtractor/wiki 
+
 ## Usage
 
 The software runs from commandline with `.\DepthMapExtractor [options] inputfile` where options are:
@@ -30,6 +32,7 @@ A typical call is:
 It works with: 
 
 - Xiaomi POCO F1
+- Xiaomi POCO F3
 - Redmi Note 9 Pro
 
 ## About Kaitai
