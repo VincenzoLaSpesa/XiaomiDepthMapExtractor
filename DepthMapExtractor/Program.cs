@@ -50,26 +50,18 @@ namespace DepthMapExtractor
                 return FileMode.CreateNew;
             }
         }
+
+        public Options Clone()
+        {
+            return (Options)this.MemberwiseClone();
+        }
     }
 
     class Program
     {
         static void Main(string[] args)
         {
-            if (Debugger.IsAttached && args.Length == 0)
-            { // Debug mode
-                Options o = new Options
-                {
-                    InputFile = "..\\..\\..\\..\\..\\dataset\\XiaomiMi10T_RearPortrait.jpg",
-                    SubImages = true,
-                    Overwrite = true,
-                    Log = true,
-                    Trailer = false
-                };
-                using DepthMapExtractor depthMapExtractor = new DepthMapExtractor(o);
-                depthMapExtractor.Process();
-            }
-            else if (args.Length == 1)
+            if (args.Length == 1)
             { // trivial mode, only input file provided
                 using DepthMapExtractor depthMapExtractor = new DepthMapExtractor(args[0]);
                 depthMapExtractor.Process();

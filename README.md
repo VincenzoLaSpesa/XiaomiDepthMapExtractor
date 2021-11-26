@@ -41,6 +41,11 @@ This software uses Kaitai for parsing the binary structure of the file.
 The kaitai grammar can be found in `xiaomi_depthmap.ksy.yaml` and will be also part of 
 https://github.com/kaitai-io/kaitai_struct_formats once finished.
 
+## How to get it
+You can build it, or download a release from here
+
+https://github.com/VincenzoLaSpesa/XiaomiDepthMapExtractor/releases
+
 ## How to build
 
 From the root folder, it will build in the folder "dist"
@@ -58,7 +63,6 @@ Where *runtime* can be:
 - osx-x64
 - One of the others listed here https://docs.microsoft.com/en-us/dotnet/core/rid-catalog
 
-
 ## TODO
 
 - At least with one of the lens the depthmap has ha totally different format I still can't parse
@@ -66,8 +70,6 @@ Where *runtime* can be:
 - Improved the padding, current just mirrors from the available depth image
 - Covert the images to other standard format ( like the Google's one)
 - Understand the structure of the confidence map
-- Documentation of the software
-- Documentation of the format in a wiki
 
 ## License
 This software is released under MIT license 
